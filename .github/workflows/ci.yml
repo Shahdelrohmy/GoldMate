@@ -37,7 +37,7 @@ jobs:
       - uses: actions/setup-node@v4
         if: hashFiles('apps/mobile/package-lock.json') != ''
         with:
-          node-version: 20
+          node-version: 24
       - name: Install
         if: hashFiles('apps/mobile/package-lock.json') != ''
         working-directory: apps/mobile
