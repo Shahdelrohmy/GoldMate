@@ -1,0 +1,310 @@
+openapi: 3.0.3
+info:
+  title: GoldMate API
+  version: 0.1.0
+  description: |
+    DRAFT starter for Week 2. The Team Lead refines it in Week 1 and the pairs agree the details on Saturday of each week.
+    Conventions: money is an integer in piasters (1 EGP = 100 piasters), weights are grams with 3 decimals,
+    dates are ISO 8601. Every price is an estimate and the response says so.
+    Open items: the calculator request/response shapes (not defined in the Brief) and the exact
+    definitions of the 8 Vault numbers (proposed in Month1_Detailed_Tasks.md, waiting for team approval).
+servers:
+  - url: http://localhost:3000
+security:
+  - bearerAuth: []
+
+paths:
+  /health:
+    get:
+      summary: Liveness check
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { type: string, example: ok }
+
+  /prices/latest:
+    get:
+      summary: Latest gold prices (estimate), after the Admin spread
+      responses:
+        "200":
+          description: Latest snapshot
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PriceSnapshot" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /prices/history:
+    get:
+      summary: Price history for one karat
+      parameters:
+        - name: karat
+          in: query
+          required: true
+          schema: { type: integer, enum: [24, 21, 18] }
+        - name: range
+          in: query
+          required: true
+          schema: { type: string, enum: [1W, 1M, 3M, 1Y] }
+      responses:
+        "200":
+          description: Points in time order
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [karat, points]
+                properties:
+                  karat: { type: integer }
+                  points:
+                    type: array
+                    items:
+                      type: object
+                      required: [at, gram_price_piasters]
+                      properties:
+                        at: { type: string, format: date-time }
+                        gram_price_piasters: { type: integer, format: int64 }
+        default: { $ref: "#/components/responses/Error" }
+
+  /vault/records:
+    get:
+      summary: List the signed-in user's Gold Records
+      responses:
+        "200":
+          description: Records
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/GoldRecord" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      summary: Add a Gold Record (manual entry in Month 1)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GoldRecordInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GoldRecord" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /vault/records/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      summary: Get one record
+      responses:
+        "200":
+          description: Record
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GoldRecord" }
+        default: { $ref: "#/components/responses/Error" }
+    patch:
+      summary: Update a record
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GoldRecordInput" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GoldRecord" }
+        default: { $ref: "#/components/responses/Error" }
+    delete:
+      summary: Delete a record
+      responses:
+        "204": { description: Deleted }
+        default: { $ref: "#/components/responses/Error" }
+
+  /vault/summary:
+    get:
+      summary: The 8 Vault calculations
+      responses:
+        "200":
+          description: Summary (all values are estimates)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VaultSummary" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /zakat/status:
+    get:
+      summary: Zakat status for the signed-in user
+      responses:
+        "200":
+          description: Status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ZakatStatus" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /calculators/buy-sell:
+    post:
+      summary: Buy/Sell calculator (shape to be agreed on Saturday of Week 2, B2 + M2)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200":
+          description: Result
+          content:
+            application/json:
+              schema: { type: object }
+        default: { $ref: "#/components/responses/Error" }
+
+  /calculators/break-even:
+    post:
+      summary: Break-even calculator (shape to be agreed on Saturday of Week 2, B2 + M2)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200":
+          description: Result
+          content:
+            application/json:
+              schema: { type: object }
+        default: { $ref: "#/components/responses/Error" }
+
+  /calculators/making-charge:
+    post:
+      summary: Making Charges calculator (shape to be agreed on Saturday of Week 2, B2 + M2)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200":
+          description: Result
+          content:
+            application/json:
+              schema: { type: object }
+        default: { $ref: "#/components/responses/Error" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Supabase access token
+
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string, example: validation_failed }
+            message: { type: string }
+
+    PriceSnapshot:
+      type: object
+      required: [fetched_at, ounce_usd, usd_egp, gram_price_piasters, is_estimate]
+      properties:
+        fetched_at: { type: string, format: date-time }
+        ounce_usd: { type: number }
+        usd_egp: { type: number }
+        gram_price_piasters:
+          type: object
+          required: ["24", "21", "18"]
+          description: Price per gram by karat, in piasters
+          properties:
+            "24": { type: integer, format: int64 }
+            "21": { type: integer, format: int64 }
+            "18": { type: integer, format: int64 }
+        source: { type: string, enum: [api, manual] }
+        is_estimate: { type: boolean, example: true }
+
+    GoldRecordInput:
+      type: object
+      required: [piece_type, karat, weight_g, price_piasters, purchased_on]
+      properties:
+        piece_type: { type: string, enum: [coin, bar, jewelry] }
+        karat: { type: integer, enum: [24, 21, 18] }
+        weight_g: { type: number, minimum: 0.001 }
+        price_piasters: { type: integer, format: int64, minimum: 0 }
+        making_charge_piasters: { type: integer, format: int64, minimum: 0, nullable: true }
+        purchased_on: { type: string, format: date }
+        shop_name: { type: string, nullable: true }
+        invoice_image_path: { type: string, nullable: true }
+
+    GoldRecord:
+      allOf:
+        - $ref: "#/components/schemas/GoldRecordInput"
+        - type: object
+          required: [id, source, created_at]
+          properties:
+            id: { type: string, format: uuid }
+            source: { type: string, enum: [manual, ai_extracted_reviewed, shop_verified] }
+            created_at: { type: string, format: date-time }
+
+    VaultSummary:
+      type: object
+      description: The 8 calculations. Definitions are proposed, pending team approval.
+      required:
+        - total_weight_g
+        - pure_weight_g
+        - total_invested_piasters
+        - average_cost_per_gram_piasters
+        - current_value_piasters
+        - selling_value_piasters
+        - profit_loss_piasters
+        - break_even_price_per_gram_piasters
+        - is_estimate
+      properties:
+        total_weight_g: { type: number }
+        pure_weight_g: { type: number, description: "24K equivalent" }
+        total_invested_piasters: { type: integer, format: int64 }
+        average_cost_per_gram_piasters: { type: integer, format: int64, nullable: true }
+        current_value_piasters: { type: integer, format: int64 }
+        selling_value_piasters: { type: integer, format: int64, description: "After the Admin spread" }
+        profit_loss_piasters: { type: integer, format: int64 }
+        break_even_price_per_gram_piasters: { type: integer, format: int64, nullable: true }
+        is_estimate: { type: boolean, example: true }
+
+    ZakatStatus:
+      type: object
+      required: [pure_weight_g, nisab_g, above_nisab]
+      properties:
+        pure_weight_g: { type: number }
+        nisab_g: { type: number, description: "From app_settings (85)" }
+        above_nisab: { type: boolean }
+        hawl_start_gregorian: { type: string, format: date, nullable: true }
+        hawl_start_hijri: { type: string, nullable: true, example: "1448-05-12" }
+        days_remaining: { type: integer, nullable: true }
+        zakat_due_piasters: { type: integer, format: int64, nullable: true }
+        disclaimer: { type: string, description: "This is a calculation aid, not a fatwa" }

@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Each job skips its steps until that project exists (before scripts/bootstrap.sh ran),
+# so CI is green on a fresh repo and becomes strict as soon as the project is added.
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        if: hashFiles('services/api/package-lock.json') != ''
+        with:
+          node-version: 20
+      - name: Install
+        if: hashFiles('services/api/package-lock.json') != ''
+        working-directory: services/api
+        run: npm ci
+      - name: Type check
+        if: hashFiles('services/api/tsconfig.json') != ''
+        working-directory: services/api
+        run: npx tsc --noEmit
+      - name: Tests
+        if: hashFiles('services/api/package-lock.json') != ''
+        working-directory: services/api
+        run: npx vitest run --passWithNoTests
+
+  mobile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        if: hashFiles('apps/mobile/package-lock.json') != ''
+        with:
+          node-version: 20
+      - name: Install
+        if: hashFiles('apps/mobile/package-lock.json') != ''
+        working-directory: apps/mobile
+        run: npm ci
+      - name: Type check
+        if: hashFiles('apps/mobile/tsconfig.json') != ''
+        working-directory: apps/mobile
+        run: npx tsc --noEmit
+
+  admin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        if: hashFiles('apps/admin/package-lock.json') != ''
+        with:
+          node-version: 20
+      - name: Install
+        if: hashFiles('apps/admin/package-lock.json') != ''
+        working-directory: apps/admin
+        run: npm ci
+      - name: Build
+        if: hashFiles('apps/admin/package-lock.json') != ''
+        working-directory: apps/admin
+        run: npm run build
+
+  ai:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        if: hashFiles('services/ai/requirements.txt') != ''
+        with:
+          python-version: "3.11"
+      - name: Install
+        if: hashFiles('services/ai/requirements.txt') != ''
+        working-directory: services/ai
+        run: pip install -r requirements.txt
+      - name: Tests
+        if: hashFiles('services/ai/requirements.txt') != ''
+        working-directory: services/ai
+        run: |
+          code=0
+          pytest || code=$?
+          # exit code 5 = no tests collected yet, treat as OK
+          if [ "$code" -eq 5 ]; then exit 0; fi
+          exit "$code"

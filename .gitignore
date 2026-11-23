@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+
+# Secrets (never commit). Keep the .env.example files.
+.env
+.env.*
+!.env.example
+
+# Build output and caches
+dist/
+build/
+coverage/
+.expo/
+.expo-shared/
+.pytest_cache/
+.vitest/
+
+# Supabase local state
+supabase/.temp/
+
+# OS and editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.log

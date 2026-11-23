@@ -1,0 +1,10 @@
+# Replace @TL @B2 @M1 @M2 with the real GitHub usernames before enabling
+# "Require review from Code Owners" in branch protection.
+/services/api/        @TL @B2
+/services/ai/         @TL @B2
+/apps/mobile/         @M1 @M2
+/apps/admin/          @M1
+/contracts/           @TL
+/supabase/            @TL
+/AGENTS.md            @TL
+/.github/             @TL
