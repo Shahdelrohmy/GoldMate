@@ -29,10 +29,10 @@ Based on `GoldMate_Project_Brief.md` v3. No feature is cut. Every F-xx and AI-xx
 
 | Label | Person | Main ownership |
 |---|---|---|
-| **TL** | Backend 1, Team Lead (more experienced) | Architecture, code review, AI-01 Document Reader, orders and payment, AI-05, security |
-| **B2** | Backend 2 (new to Node) | Prices and zakat services, AI-04 Goal Agent (Monte Carlo fits NumPy), shop backend, Directory, Activity Score |
-| **M1** | Mobile 1 (has built a project before) | Prices/Vault/Zakat screens, AI-03 + AI-06, Goals screen, catalog, checkout, Admin web pages |
-| **M2** | Mobile 2 (newest) | Auth/onboarding/calculator screens, AI-02 Notifications, AI-01 screens, QR, Directory, Activity screens |
+| **TL** | Backend 1,| Architecture, code review, AI-01 Document Reader, orders and payment, AI-05, security |
+| **B2** | Backend 2 | Prices and zakat services, AI-04 Goal Agent (Monte Carlo fits NumPy), shop backend, Directory, Activity Score |
+| **M1** | Mobile 1 | Prices/Vault/Zakat screens, AI-03 + AI-06, Goals screen, catalog, checkout, Admin web pages |
+| **M2** | Mobile 2 | Auth/onboarding/calculator screens, AI-02 Notifications, AI-01 screens, QR, Directory, Activity screens |
 
 Pairing rule: M2 and B2 are the two learners. In Weeks 1 to 4 each one gets small, well-scoped tasks and a review from TL or M1 within 24 hours.
 
