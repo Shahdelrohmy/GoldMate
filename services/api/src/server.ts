@@ -1,3 +1,4 @@
+
 import 'dotenv/config'
 import { createApp } from './app.js'
 import { loadEnv } from './config/env.js'
@@ -6,7 +7,11 @@ import { createSupabaseVerifier } from './services/auth.js'
 
 const env = loadEnv()
 const supabase = createAdminClient(env.supabaseUrl, env.supabaseSecretKey)
-const app = createApp({ verifyToken: createSupabaseVerifier(supabase) })
+
+const app = createApp({
+  verifyToken: createSupabaseVerifier(supabase),
+  supabase,
+})
 
 app.listen(env.port, () => {
   console.log(`GoldMate API listening on http://localhost:${env.port}`)

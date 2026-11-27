@@ -49,7 +49,7 @@ paths:
 
   /prices/latest:
     get:
-      summary: Latest gold prices (estimate), after the Admin spread
+      summary: Latest gold prices (estimate), before the Admin spread
       responses:
         "200":
           description: Latest snapshot
