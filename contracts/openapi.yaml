@@ -1,13 +1,15 @@
 openapi: 3.0.3
 info:
   title: GoldMate API
-  version: 0.1.0
+  version: 1.0.0
   description: |
-    DRAFT starter for Week 2. The Team Lead refines it in Week 1 and the pairs agree the details on Saturday of each week.
+    v1 of the Week 2 endpoints. The pairs agree any detail changes on Saturday of each week, and every change starts here first.
     Conventions: money is an integer in piasters (1 EGP = 100 piasters), weights are grams with 3 decimals,
     dates are ISO 8601. Every price is an estimate and the response says so.
-    Open items: (1) the 8 Vault definitions and the spread semantics (percent of price, see VaultSummary) wait for team approval;
-    (2) buy-sell and break-even calculator shapes are PROPOSED, B2 + M2 confirm them on Saturday of Week 2.
+    Decision: the Spread is a FIXED amount per gram of 24K gold, in piasters (stored in app_settings as
+    `default_spread_piasters_per_gram`, edited by the Admin). Source: Month1_Detailed_Tasks.md, calculations 6 and 8.
+    Open items: (1) the buy-sell and break-even calculator shapes and the manual price endpoint are PROPOSED,
+    B2 + M2 confirm them on Saturday of Week 2; (2) consent, delete-account and export-my-data endpoints (F-05) are added in Week 3.
 servers:
   - url: http://localhost:3000
 security:
@@ -87,6 +89,32 @@ paths:
                         at: { type: string, format: date-time }
                         gram_price_piasters: { type: integer, format: int64 }
         default: { $ref: "#/components/responses/Error" }
+
+  /admin/prices/manual:
+    post:
+      summary: Admin only. Enter the gold price by hand (fallback when the price API is down). PROPOSED, B2 confirms.
+      description: |
+        Stores a new row in `gold_prices` with source "manual". `/prices/latest` always returns the newest row, API or manual.
+        Role `admin` only: other roles get 403.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ounce_usd, usd_egp]
+              properties:
+                ounce_usd: { type: number, minimum: 0.0001, description: "Gold price per troy ounce in USD" }
+                usd_egp: { type: number, minimum: 0.0001, description: "USD to EGP rate" }
+      responses:
+        "201":
+          description: Created. Same shape as /prices/latest.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PriceSnapshot" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
 
   /vault/records:
     get:
@@ -176,8 +204,8 @@ paths:
     post:
       summary: Buy/Sell calculator (PROPOSED shape, B2 + M2 confirm)
       description: |
-        Buy total = pure weight x karat price + optional making charge.
-        Sell total = pure weight x karat price after the Admin spread.
+        Buy total = pure weight x 24K gram price + optional making charge.
+        Sell total = pure weight x (24K gram price - spread per gram).
       requestBody:
         required: true
         content:
@@ -196,19 +224,21 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [gram_price_piasters, buy_total_piasters, sell_total_piasters, spread_pct, is_estimate]
+                required: [gram_price_piasters, buy_total_piasters, sell_total_piasters, spread_piasters_per_gram, is_estimate]
                 properties:
                   gram_price_piasters: { type: integer, format: int64, description: "Price per gram of the chosen karat" }
                   buy_total_piasters: { type: integer, format: int64 }
                   sell_total_piasters: { type: integer, format: int64 }
-                  spread_pct: { type: number }
+                  spread_piasters_per_gram: { type: integer, format: int64, description: "Admin spread, piasters per gram of 24K" }
                   is_estimate: { type: boolean, example: true }
         default: { $ref: "#/components/responses/Error" }
 
   /calculators/break-even:
     post:
       summary: Break-even calculator for one purchase (PROPOSED shape, B2 + M2 confirm)
-      description: The 24K gram price at which selling (after the spread) returns the purchase price.
+      description: |
+        The 24K gram price at which selling (after the spread) returns the purchase price.
+        Formula: purchase price / pure weight + spread per gram.
       requestBody:
         required: true
         content:
@@ -369,8 +399,9 @@ components:
     VaultSummary:
       type: object
       description: |
-        The 8 calculations. Definitions are proposed, pending team approval (see services/api/src/domain/vault.ts).
-        The spread is a percent of the price (OPEN DECISION: percent vs fixed EGP per gram).
+        The 8 calculations (definitions: Month1_Detailed_Tasks.md, implemented in services/api/src/domain/vault.ts).
+        The spread is a fixed amount per gram of 24K in piasters: selling value = pure weight x (24K gram price - spread),
+        break-even = total invested / pure weight + spread.
       required:
         - total_weight_g
         - pure_weight_g
@@ -389,7 +420,7 @@ components:
         current_value_piasters: { type: integer, format: int64 }
         selling_value_piasters: { type: integer, format: int64, description: "After the Admin spread" }
         profit_loss_piasters: { type: integer, format: int64 }
-        break_even_price_per_gram_piasters: { type: integer, format: int64, nullable: true }
+        break_even_price_per_gram_piasters: { type: integer, format: int64, nullable: true, description: "24K gram price at which the selling value equals the invested amount" }
         return_pct: { type: number, nullable: true, description: "Profit/loss as % of the invested amount; null when nothing is invested" }
         is_estimate: { type: boolean, example: true }
 

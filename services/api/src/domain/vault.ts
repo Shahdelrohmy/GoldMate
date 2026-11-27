@@ -2,7 +2,7 @@
 import { isKarat, type Karat } from './gold.js'
 
 // The 8 Vault calculations (F-13).
-// Money = integer piasters. Spread is a percentage of the current gold value.
+// Money = integer piasters. Spread is a FIXED amount per gram of 24K gold, in piasters (decision: Month1_Detailed_Tasks.md, calculations 6 and 8).
 // Weights are summed as integer milligrams to avoid 3-decimal gram drift.
 
 export type VaultRecord = {
@@ -42,16 +42,18 @@ function assertFinite(value: number, name: string): void {
 export function computeVaultSummary(
   records: readonly VaultRecord[],
   gram24Piasters: number,
-  spreadPct: number,
+  spreadPiastersPerGram: number,
 ): VaultSummary {
   assertFinite(gram24Piasters, 'gram24Piasters')
   if (gram24Piasters <= 0) {
     throw new RangeError('gram24Piasters must be positive')
   }
 
-  assertFinite(spreadPct, 'spreadPct')
-  if (spreadPct < 0 || spreadPct >= 100) {
-    throw new RangeError('spreadPct must be >= 0 and < 100')
+  if (!Number.isSafeInteger(spreadPiastersPerGram) || spreadPiastersPerGram < 0) {
+    throw new RangeError('spreadPiastersPerGram must be a non-negative safe integer')
+  }
+  if (spreadPiastersPerGram >= gram24Piasters) {
+    throw new RangeError('spreadPiastersPerGram must be less than the 24K gram price')
   }
 
   let totalMg = 0
@@ -86,13 +88,14 @@ export function computeVaultSummary(
     }
   }
 
-  const keep = 1 - spreadPct / 100
+  // 5. current = pure x gram24.  6. selling = pure x (gram24 - spread).
   const current = Math.round((pureMg * gram24Piasters) / 1000)
-  const selling = Math.round(((pureMg * gram24Piasters) / 1000) * keep)
+  const selling = Math.round((pureMg * (gram24Piasters - spreadPiastersPerGram)) / 1000)
   const hasGold = pureMg > 0
 
   const averageCost = hasGold ? Math.round((invested * 1000) / pureMg) : null
-  const breakEven = hasGold ? Math.round(invested / (pureMg / 1000 * keep)) : null
+  // 8. break-even = invested / pure + spread (the 24K price at which selling returns exactly the invested amount).
+  const breakEven = hasGold ? Math.round((invested * 1000) / pureMg + spreadPiastersPerGram) : null
   const profitLoss = selling - invested
   const returnPct = invested > 0
     ? Math.round((profitLoss / invested) * 10000) / 100
