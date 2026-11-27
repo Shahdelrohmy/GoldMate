@@ -1,13 +1,15 @@
 openapi: 3.0.3
 info:
   title: GoldMate API
-  version: 0.1.0
+  version: 1.0.0
   description: |
-    DRAFT starter for Week 2. The Team Lead refines it in Week 1 and the pairs agree the details on Saturday of each week.
+    v1 of the Week 2 endpoints. The pairs agree any detail changes on Saturday of each week, and every change starts here first.
     Conventions: money is an integer in piasters (1 EGP = 100 piasters), weights are grams with 3 decimals,
     dates are ISO 8601. Every price is an estimate and the response says so.
-    Open items: the calculator request/response shapes (not defined in the Brief) and the exact
-    definitions of the 8 Vault numbers (proposed in Month1_Detailed_Tasks.md, waiting for team approval).
+    Decision: the Spread is a FIXED amount per gram of 24K gold, in piasters (stored in app_settings as
+    `default_spread_piasters_per_gram`, edited by the Admin). Source: Month1_Detailed_Tasks.md, calculations 6 and 8.
+    Open items: (1) the buy-sell and break-even calculator shapes and the manual price endpoint are PROPOSED,
+    B2 + M2 confirm them on Saturday of Week 2; (2) consent, delete-account and export-my-data endpoints (F-05) are added in Week 3.
 servers:
   - url: http://localhost:3000
 security:
@@ -29,9 +31,25 @@ paths:
                 properties:
                   status: { type: string, example: ok }
 
+  /me:
+    get:
+      summary: Who is signed in (id and role). Also the quickest way to test a token.
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, role]
+                properties:
+                  id: { type: string, format: uuid }
+                  role: { type: string, enum: [individual, shop, admin] }
+        "401": { $ref: "#/components/responses/Error" }
+
   /prices/latest:
     get:
-      summary: Latest gold prices (estimate), after the Admin spread
+      summary: Latest gold prices (estimate), before the Admin spread
       responses:
         "200":
           description: Latest snapshot
@@ -71,6 +89,32 @@ paths:
                         at: { type: string, format: date-time }
                         gram_price_piasters: { type: integer, format: int64 }
         default: { $ref: "#/components/responses/Error" }
+
+  /admin/prices/manual:
+    post:
+      summary: Admin only. Enter the gold price by hand (fallback when the price API is down). PROPOSED, B2 confirms.
+      description: |
+        Stores a new row in `gold_prices` with source "manual". `/prices/latest` always returns the newest row, API or manual.
+        Role `admin` only: other roles get 403.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ounce_usd, usd_egp]
+              properties:
+                ounce_usd: { type: number, minimum: 0.0001, description: "Gold price per troy ounce in USD" }
+                usd_egp: { type: number, minimum: 0.0001, description: "USD to EGP rate" }
+      responses:
+        "201":
+          description: Created. Same shape as /prices/latest.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PriceSnapshot" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
 
   /vault/records:
     get:
@@ -158,50 +202,130 @@ paths:
 
   /calculators/buy-sell:
     post:
-      summary: Buy/Sell calculator (shape to be agreed on Saturday of Week 2, B2 + M2)
+      summary: Buy/Sell calculator (PROPOSED shape, B2 + M2 confirm)
+      description: |
+        Buy total = pure weight x 24K gram price + optional making charge.
+        Sell total = pure weight x (24K gram price - spread per gram).
       requestBody:
         required: true
         content:
           application/json:
-            schema: { type: object }
+            schema:
+              type: object
+              required: [weight_g, karat]
+              properties:
+                weight_g: { type: number, minimum: 0.001 }
+                karat: { type: integer, enum: [24, 21, 18] }
+                making_charge_piasters: { type: integer, format: int64, minimum: 0, nullable: true }
       responses:
         "200":
-          description: Result
+          description: Result (estimate)
           content:
             application/json:
-              schema: { type: object }
+              schema:
+                type: object
+                required: [gram_price_piasters, buy_total_piasters, sell_total_piasters, spread_piasters_per_gram, is_estimate]
+                properties:
+                  gram_price_piasters: { type: integer, format: int64, description: "Price per gram of the chosen karat" }
+                  buy_total_piasters: { type: integer, format: int64 }
+                  sell_total_piasters: { type: integer, format: int64 }
+                  spread_piasters_per_gram: { type: integer, format: int64, description: "Admin spread, piasters per gram of 24K" }
+                  is_estimate: { type: boolean, example: true }
         default: { $ref: "#/components/responses/Error" }
 
   /calculators/break-even:
     post:
-      summary: Break-even calculator (shape to be agreed on Saturday of Week 2, B2 + M2)
+      summary: Break-even calculator for one purchase (PROPOSED shape, B2 + M2 confirm)
+      description: |
+        The 24K gram price at which selling (after the spread) returns the purchase price.
+        Formula: purchase price / pure weight + spread per gram.
       requestBody:
         required: true
         content:
           application/json:
-            schema: { type: object }
+            schema:
+              type: object
+              required: [weight_g, karat, purchase_price_piasters]
+              properties:
+                weight_g: { type: number, minimum: 0.001 }
+                karat: { type: integer, enum: [24, 21, 18] }
+                purchase_price_piasters: { type: integer, format: int64, minimum: 0 }
       responses:
         "200":
-          description: Result
+          description: Result (estimate)
           content:
             application/json:
-              schema: { type: object }
+              schema:
+                type: object
+                required: [break_even_gram24_piasters, current_gram24_piasters, difference_piasters, is_estimate]
+                properties:
+                  break_even_gram24_piasters: { type: integer, format: int64 }
+                  current_gram24_piasters: { type: integer, format: int64 }
+                  difference_piasters: { type: integer, format: int64, description: "break-even minus current; positive = the price still has to rise" }
+                  is_estimate: { type: boolean, example: true }
         default: { $ref: "#/components/responses/Error" }
 
   /calculators/making-charge:
     post:
-      summary: Making Charges calculator (shape to be agreed on Saturday of Week 2, B2 + M2)
+      summary: Making Charges calculator (matches what the mobile screen already sends and shows)
       requestBody:
         required: true
         content:
           application/json:
-            schema: { type: object }
+            schema:
+              type: object
+              required: [weight_g, karat, total_price_piasters]
+              properties:
+                weight_g: { type: number, minimum: 0.001 }
+                karat: { type: integer, enum: [24, 21, 18] }
+                total_price_piasters: { type: integer, format: int64, minimum: 0 }
       responses:
         "200":
-          description: Result
+          description: Result (estimate). total_making is never negative.
           content:
             application/json:
-              schema: { type: object }
+              schema:
+                type: object
+                required: [gold_value_piasters, total_making_piasters, making_per_gram_piasters, is_estimate]
+                properties:
+                  gold_value_piasters: { type: integer, format: int64 }
+                  total_making_piasters: { type: integer, format: int64 }
+                  making_per_gram_piasters: { type: integer, format: int64 }
+                  is_estimate: { type: boolean, example: true }
+        default: { $ref: "#/components/responses/Error" }
+
+  /price-check:
+    post:
+      summary: Price Reasonableness Check (coins and bars only, F-16). Calculation, not AI.
+      description: |
+        Compares the making charge percentage with the usual range for the same type and weight (table `price_ranges`).
+        Returns 404 `no_range` when no range exists for that type and weight yet.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [piece_type, karat, weight_g, total_price_piasters]
+              properties:
+                piece_type: { type: string, enum: [coin, bar] }
+                karat: { type: integer, enum: [24, 21, 18] }
+                weight_g: { type: number, minimum: 0.001 }
+                total_price_piasters: { type: integer, format: int64, minimum: 0 }
+                making_charge_piasters: { type: integer, format: int64, minimum: 0, nullable: true, description: "If omitted, it is computed as price minus gold value" }
+      responses:
+        "200":
+          description: Result (not a judgment on the shop)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, making_pct, range_min_pct, range_max_pct]
+                properties:
+                  status: { type: string, enum: [ok, high, low], description: "ok = reasonable, high = higher than usual, low = much lower than usual (double-check karat and weight)" }
+                  making_pct: { type: number }
+                  range_min_pct: { type: number }
+                  range_max_pct: { type: number }
         default: { $ref: "#/components/responses/Error" }
 
 components:
@@ -274,7 +398,10 @@ components:
 
     VaultSummary:
       type: object
-      description: The 8 calculations. Definitions are proposed, pending team approval.
+      description: |
+        The 8 calculations (definitions: Month1_Detailed_Tasks.md, implemented in services/api/src/domain/vault.ts).
+        The spread is a fixed amount per gram of 24K in piasters: selling value = pure weight x (24K gram price - spread),
+        break-even = total invested / pure weight + spread.
       required:
         - total_weight_g
         - pure_weight_g
@@ -293,7 +420,8 @@ components:
         current_value_piasters: { type: integer, format: int64 }
         selling_value_piasters: { type: integer, format: int64, description: "After the Admin spread" }
         profit_loss_piasters: { type: integer, format: int64 }
-        break_even_price_per_gram_piasters: { type: integer, format: int64, nullable: true }
+        break_even_price_per_gram_piasters: { type: integer, format: int64, nullable: true, description: "24K gram price at which the selling value equals the invested amount" }
+        return_pct: { type: number, nullable: true, description: "Profit/loss as % of the invested amount; null when nothing is invested" }
         is_estimate: { type: boolean, example: true }
 
     ZakatStatus:
